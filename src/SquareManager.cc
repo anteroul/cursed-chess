@@ -1,19 +1,35 @@
 #include "SquareManager.hh"
 
-namespace Sqr
+#include <array>
+#include <cassert>
+
+namespace
 {
-	// the actual squares
-	static Square squares[8][8];
+	using Grid = std::array<std::array<Square, BoardSize>, BoardSize>;
 
-	Square* squareHelper(int x, int y)
+	Grid makeGrid()
 	{
-		if((x >= 0) && (x < 8) && (y >= 0) && (y < 8))
-			return &getSquare(x, y);
-
-        return nullptr;
+		Grid grid{};
+		for (int x = 0; x < BoardSize; x++)
+			for (int y = 0; y < BoardSize; y++)
+			{
+				grid[x][y].x = x;
+				grid[x][y].y = y;
+			}
+		return grid;
 	}
 
-	Square& getSquare(int x, int y) { return squares[x][y]; }
+	// the actual squares, indexed [x][y]
+	Grid squares = makeGrid();
+}
 
-	Square squareCopy(int x, int y) { return squares[x][y]; }
+Square &Sqr::at(int x, int y)
+{
+	assert(onBoard(x, y));
+	return squares[x][y];
+}
+
+Square *Sqr::find(int x, int y) noexcept
+{
+	return onBoard(x, y) ? &squares[x][y] : nullptr;
 }

@@ -1,22 +1,7 @@
-#ifndef BOARD_HH
-#define BOARD_HH
+#pragma once
 
-#include <SDL2/SDL.h>
-#include "ScreenSize.hh"
-#include "Renderer.hh"
-#include "SquareManager.hh"
-
-class Board
+namespace Board
 {
-public:
-	Board();
+	// lay out the squares for the current window size and draw them
 	void render();
-	void makeBoard() const;
-	void makeRects();
-private:
-	// source and destination for texture
-	SDL_Rect srcrect{};
-	SDL_Rect dstrect{};
-};
-
-#endif
+}

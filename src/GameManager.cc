@@ -1,92 +1,49 @@
 #include "GameManager.hh"
 
-namespace GameManager
+#include "Global.hh"
+#include "LegalMoves.hh"
+#include "Pieces.hh"
+
+namespace
 {
-	void update()
+	void updateSide(SideState &side, User defender, int homeRank)
 	{
-		Global::playerCanCastleK = true;
-		Global::playerCanCastleQ = true;
-		Global::playerInCheck = false;
+		side.inCheck = false;
+		side.canCastleKingSide = !side.kingMoved && !side.kingSideRookMoved;
+		side.canCastleQueenSide = !side.kingMoved && !side.queenSideRookMoved;
 
-		for (int i = 0; i < 16; i++)
+		const User attackerUser = opponentOf(defender);
+
+		for (const Piece &attacker : Pieces::all())
 		{
-			std::vector v = LegalMove::get(Pieces::get(i));
+			if (attacker.user != attackerUser)
+				continue;
 
-			for (auto &j: v)
+			for (const Square &s : LegalMove::pseudoLegal(attacker))
 			{
 				// see checks
-				if (j.piece.type == 5)
+				if (s.piece.type == PieceType::King)
 				{
-					Global::playerInCheck = true;
-					Global::playerCanCastleQ = false;
-					Global::playerCanCastleK = false;
+					side.inCheck = true;
+					side.canCastleKingSide = false;
+					side.canCastleQueenSide = false;
 				}
 
-				// possibility to castle
-				if (!Global::playerKingMoved)
+				// the king can't castle through attacked squares
+				if (s.y == homeRank)
 				{
-					if (!Global::playerKsideRookMoved)
-					{
-						if ((j.x == 5 && j.y == 7) || (j.x == 6 && j.y == 7))
-							Global::playerCanCastleK = false;
-					} else
-						Global::playerCanCastleK = false;
-
-					if (!Global::playerQsideRookMoved)
-					{
-						if ((j.x == 1 && j.y == 7) || (j.x == 2 && j.y == 7))
-							Global::playerCanCastleQ = false;
-					} else
-						Global::playerCanCastleQ = false;
-				} else
-				{
-					Global::playerCanCastleQ = false;
-					Global::playerCanCastleK = false;
+					if (s.x == 5 || s.x == 6)
+						side.canCastleKingSide = false;
+					if (s.x == 1 || s.x == 2)
+						side.canCastleQueenSide = false;
 				}
-			}
-		}
-
-		Global::engineCanCastleK = true;
-		Global::engineCanCastleQ = true;
-		Global::engineInCheck = false;
-
-		for (int i = 16; i < 32; i++)
-		{
-			std::vector v = LegalMove::get(Pieces::get(i));
-			for (auto &j: v)
-			{
-				// see checks
-				if (j.piece.type == 5)
-				{
-					Global::engineInCheck = true;
-					Global::engineCanCastleK = false;
-					Global::engineCanCastleQ = false;
-				}
-
-				// possibility to castle
-				if (!Global::engineKingMoved)
-				{
-					if (!Global::engineKsideRookMoved)
-					{
-						if ((j.x == 5 && j.y == 0) || (j.x == 6 && j.y == 7))
-							Global::engineCanCastleK = false;
-					} else
-						Global::engineCanCastleK = false;
-
-					if (!Global::engineQsideRookMoved)
-					{
-						if ((j.x == 1 && j.y == 0) || (j.x == 2 && j.y == 0))
-							Global::playerCanCastleQ = false;
-					} else
-						Global::engineCanCastleQ = false;
-
-				} else
-				{
-					Global::engineCanCastleK = false;
-					Global::engineCanCastleQ = false;
-				}
-
 			}
 		}
 	}
+}
+
+void GameManager::update()
+{
+	updateSide(Global.player, User::Player, 7);
+	updateSide(Global.engine, User::Engine, 0);
 }

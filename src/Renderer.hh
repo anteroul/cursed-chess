@@ -1,16 +1,15 @@
-#ifndef RENDERER_HH
-#define RENDERER_HH
+#pragma once
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
 
+// the renderer used for all drawing; it is owned by Window
 namespace Renderer
 {
-	SDL_Renderer* get();
-	void set(SDL_Renderer* _renderer);
-	void setColor(int r, int g, int b);
-	void clear();
-	void render();
-	void fillRect(SDL_Rect r);
+	[[nodiscard]] SDL_Renderer *get() noexcept;
+	void set(SDL_Renderer *renderer) noexcept;
+	void setColor(Uint8 r, Uint8 g, Uint8 b) noexcept;
+	void clear() noexcept;
+	void present() noexcept;
+	void fillRect(const SDL_Rect &rect) noexcept;
+	void drawTexture(SDL_Texture *texture, const SDL_Rect &destination) noexcept;
 }
-
-#endif

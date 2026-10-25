@@ -1,14 +1,7 @@
-#ifndef GAMEMANAGER_HH
-#define GAMEMANAGER_HH
-
-#include "Global.hh"
-#include "LegalMoves.hh"
-#include "Pieces.hh"
+#pragma once
 
 namespace GameManager
 {
+	// recompute check and castling availability for both sides
 	void update();
 }
-
-
-#endif

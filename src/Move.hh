@@ -1,20 +1,13 @@
-#ifndef MOVE_HH
-#define MOVE_HH
+#pragma once
 
+#include <string>
 #include "Piece.hh"
 #include "Square.hh"
-#include "Pieces.hh"
-#include "SquareManager.hh"
-#include "Global.hh"
-#include <iostream>
-#include <string>
-
-#define showPieces std::cout << "Q:QUEEN\nR:ROOK\nB:BISHOP\nN:KNIGHT\n";
 
 namespace Move
 {
-	void execute(Piece* source, Square target);
-	std::string getName();
+	// play `source` to `target`, handling captures, castling and en passant;
+	// returns a human-readable description of the move.
+	// `target` is a copy on purpose: the move rewrites the board squares while it runs
+	std::string execute(Piece &source, Square target);
 }
-
-#endif

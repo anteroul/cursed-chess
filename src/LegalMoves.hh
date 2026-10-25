@@ -1,22 +1,14 @@
-#ifndef LEGALMOVES_HH
-#define LEGALMOVES_HH
+#pragma once
 
-#include "Square.hh"
-#include "SquareManager.hh"
-#include "Piece.hh"
-#include "Global.hh"
-#include "Settings.hh"
-#include "Pieces.hh"
-#include "Move.hh"
 #include <vector>
+#include "Piece.hh"
+#include "Square.hh"
 
 namespace LegalMove
 {
-	// main function
-	std::vector<Square> get(Piece piece);
+	// moves allowed by the piece's movement rules, ignoring whether they leave its own king in check
+	[[nodiscard]] std::vector<Square> pseudoLegal(const Piece &piece);
 
-	// get filtered version
-	std::vector<Square> getLegal(Piece piece);
+	// pseudo-legal moves that don't leave the piece's own king in check
+	[[nodiscard]] std::vector<Square> legal(const Piece &piece);
 }
-
-#endif

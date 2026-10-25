@@ -1,25 +1,20 @@
-#ifndef WINDOW_H
-#define WINDOW_H
+#pragma once
 
-#include <SDL2/SDL.h>
-#include <iostream>
-#include "Renderer.hh"
-#include "ScreenSize.hh"
-#include "Board.hh"
+#include "Sdl.hh"
 
+// the application window; owns the renderer published through Renderer::get()
 class Window
 {
-	public:
-		Window();
-		~Window();
-		void resize(SDL_Event e);
-	private:
-		void setSizes() const;
-		SDL_Window* window;
-		SDL_Renderer* renderer;
-		int width;
-		int height;
+public:
+	// throws std::runtime_error on failure
+	Window();
+	void handleEvent(const SDL_Event &e);
+
+private:
+	void publishSize() const noexcept;
+
+	int width = 800;
+	int height = 600;
+	sdl::Window window;
+	sdl::Renderer renderer;
 };
-
-
-#endif

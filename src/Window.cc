@@ -1,65 +1,37 @@
 #include "Window.hh"
 
+#include <stdexcept>
+#include <string>
+#include "Renderer.hh"
+#include "ScreenSize.hh"
+
 Window::Window()
+	: window{SDL_CreateWindow("Chess", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
+							  SDL_WINDOW_RESIZABLE)}
 {
-	// get monitor resolution
-	// SDL_DisplayMode mode;
-	// SDL_GetCurrentDisplayMode(0, &mode);
-
-	// Set width and height
-	width = 800;
-	height = 600;
-
-	// store screen sizes
-	setSizes();
-
-	// create window
-	window = SDL_CreateWindow("Chess", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, width, height,
-							  SDL_WINDOW_RESIZABLE);
-
-	// if window creation fails
 	if (!window)
-		std::cout << "Could not create window! " << SDL_GetError() << "\n";
-	else
-	{
-		// create the renderer
-		renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-		if (!renderer)
-			std::cout << "Could not create renderer! " << SDL_GetError() << "\n";
-		else
-		{
-			// set the renderer
-			Renderer::set(renderer);
-		}
-	}
+		throw std::runtime_error(std::string("Could not create window: ") + SDL_GetError());
+
+	renderer.reset(SDL_CreateRenderer(window.get(), -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC));
+	if (!renderer)
+		throw std::runtime_error(std::string("Could not create renderer: ") + SDL_GetError());
+
+	Renderer::set(renderer.get());
+	publishSize();
 }
 
-void Window::resize(SDL_Event e)
+void Window::handleEvent(const SDL_Event &e)
 {
-	switch (e.type)
+	if (e.type == SDL_WINDOWEVENT && e.window.event == SDL_WINDOWEVENT_RESIZED)
 	{
-		case SDL_WINDOWEVENT:
-			if (e.window.event == SDL_WINDOWEVENT_RESIZED)
-			{
-				// get new screensize and set it accordingly
-				SDL_GetWindowSize(window, &width, &height);
-				setSizes();
-			}
-			break;
+		// get new screensize and set it accordingly
+		SDL_GetWindowSize(window.get(), &width, &height);
+		publishSize();
 	}
 }
 
-void Window::setSizes() const
+void Window::publishSize() const noexcept
 {
 	Screen::setWidth(width);
 	Screen::setHeight(height);
 }
-
-Window::~Window()
-{
-	SDL_DestroyRenderer(renderer);
-	SDL_DestroyWindow(window);
-	window = nullptr;
-	renderer = nullptr;
-}
-

@@ -1,13 +1,10 @@
-#ifndef UKKOSHAKKI_FONTLOADER_H
-#define UKKOSHAKKI_FONTLOADER_H
+#pragma once
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include <iostream>
+#include <string>
+#include "Sdl.hh"
 
 namespace FontLoader
 {
-	TTF_Font *loadFont(std::string path, int fontSize);
+	// throws std::runtime_error on failure
+	[[nodiscard]] sdl::Font load(const std::string &path, int pointSize);
 }
-
-#endif //UKKOSHAKKI_FONTLOADER_H

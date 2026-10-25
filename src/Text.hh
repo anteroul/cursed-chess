@@ -1,30 +1,17 @@
-#ifndef UKKOSHAKKI_TEXT_H
-#define UKKOSHAKKI_TEXT_H
+#pragma once
 
-#include <iostream>
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_ttf.h>
-#include "Renderer.hh"
-#include "ScreenSize.hh"
-#include "FontLoader.hh"
-#include "Piece.hh"
+#include <string>
+#include "Sdl.hh"
 
-
+// a line of text rendered once into a texture
 class Text
 {
 public:
-	Text(std::string _text, bool playerTurn);
-    Text(std::string _text, float width, float height);
-	~Text();
-	void setText();
+	Text(TTF_Font *font, const std::string &text, SDL_Color color, SDL_Point position);
 	void render();
+
 	SDL_Rect position{};
+
 private:
-	std::string text;
-	TTF_Font* font;
-	SDL_Texture* textTexture{};
-	SDL_Color color{};
+	sdl::Texture texture;
 };
-
-
-#endif //UKKOSHAKKI_TEXT_H

@@ -1,61 +1,49 @@
-#ifndef GAME_HH
-#define GAME_HH
+#pragma once
 
-#include "Board.hh"
+#include <SDL.h>
+#include <string>
+#include <vector>
 #include "GUI.hh"
-#include "LegalMoves.hh"
 #include "Piece.hh"
 #include "PieceFactory.hh"
-#include "PieceRenderer.hh"
-#include "Settings.hh"
+#include "Sdl.hh"
 #include "Square.hh"
-#include "SquareManager.hh"
-#include "Window.hh"
-#include "Pieces.hh"
-#include "Move.hh"
-#include "Global.hh"
 #include "Text.hh"
-#include "GameManager.hh"
-#include "Texture.hh"
-#include <chrono>
-#include <thread>
+#include "Window.hh"
 
 class Game
 {
 public:
+	// throws std::runtime_error if the window or assets can't be created
 	Game();
-	~Game();
 	void updateGame();
-	bool ApplicationShouldClose = false;
+	[[nodiscard]] bool shouldClose() const noexcept { return applicationShouldClose; }
+
 private:
-	bool moveSetup();
-	void playerPlayMove();
-	void enginePlayMove();
-	void render();
-	void update();
 	void eventHandler();
+	void onMouseClick();
+	void onPromotionKey(SDL_Keycode key);
+	void update();
+	void render();
+	void playTurn();
+	void executeMove(const Square &target);
 	void resetGame();
-	void updateConsoleText(const std::string &text);
-	void executePlayerMove(Square &sq);
-    //-----------------
-	std::vector<Square> playerMoves;
-	std::vector<Square> legalMoves;
-	std::vector<Piece> playerPieces;
-    //-----------------
-	// console stuff
-	std::vector<Text*> console;
-	int consoleIndex = 0;
-	bool isPieceSelected = false;
 	void updateConsole();
-    //-----------------
-	Board *board = nullptr;
-	PieceFactory *pieces = nullptr;
-	Window *window = nullptr;
-	SDL_Event e{};
-	SDL_Point mousePos = {0, 0};
+	void updateConsoleText(const std::string &text);
+
+	// the window owns the renderer, so it is declared first to outlive every texture below
+	Window window;
+	PieceFactory pieces;
+	PromotionTable promotionTable;
+	sdl::Font consoleFont;
+
+	std::vector<Text> console;
+	std::vector<Square> legalMoves;
+	std::string lastMove;
+
+	SDL_Point mousePos{};
 	Square *selectedSquare = nullptr;
 	Square *originalSquare = nullptr;
-    PromotionTable* promotionTable = nullptr;
+	bool isPieceSelected = false;
+	bool applicationShouldClose = false;
 };
-
-#endif

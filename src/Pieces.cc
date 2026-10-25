@@ -1,106 +1,86 @@
 #include "Pieces.hh"
 
-namespace Pieces
+#include <array>
+#include <cassert>
+#include "Settings.hh"
+#include "SquareManager.hh"
+
+namespace
 {
-	// the pieces
-	static Piece p[32];
+	std::array<Piece, Pieces::Count> pieces{};
 
-	Piece &get(int n)
-	{ return p[n]; }
-
-	Piece *getModify(int n)
-	{ return &p[n]; }
-
-	void set(Piece piece, int x, int y)
+	struct Placement
 	{
-		for (int i = 0; i < 32; i++)
+		PieceType type;
+		int x;
+	};
+
+	// order matters: it defines the indices of the non-pawn pieces
+	constexpr std::array<Placement, BoardSize> backRank{{
+		{PieceType::Rook, 0},
+		{PieceType::Rook, 7},
+		{PieceType::Knight, 1},
+		{PieceType::Knight, 6},
+		{PieceType::Bishop, 2},
+		{PieceType::Bishop, 5},
+		{PieceType::Queen, 3},
+		{PieceType::King, 4},
+	}};
+}
+
+Piece &Pieces::get(int n)
+{
+	assert(n >= 0 && n < Count);
+	return pieces[n];
+}
+
+std::span<Piece, Pieces::Count> Pieces::all() noexcept
+{
+	return pieces;
+}
+
+void Pieces::set(const Piece &piece, int x, int y) noexcept
+{
+	for (Piece &p : pieces)
+	{
+		if (p.x == x && p.y == y)
 		{
-			if (get(i).x == x && get(i).y == y)
-			{
-				Piece *temp = &p[i];
-				temp->color = piece.color;
-				temp->type = piece.type;
-				temp->user = piece.user;
-			}
+			p.color = piece.color;
+			p.type = piece.type;
+			p.user = piece.user;
 		}
 	}
+}
 
-	Piece &getReal(Piece *piece)
+Piece *Pieces::getReal(const Piece &piece) noexcept
+{
+	for (Piece &p : pieces)
+		if (p.x == piece.x && p.y == piece.y && p.user == piece.user && p.type == piece.type)
+			return &p;
+
+	return nullptr;
+}
+
+void Pieces::init()
+{
+	constexpr int pawnCount = BoardSize;
+	constexpr int playerOffset = Count / 2;
+
+	for (int i = 0; i < pawnCount; i++)
 	{
-		for (auto &i: p)
-			if (i.x == piece->x && i.y == piece->y
-				&& i.user == piece->user && i.type == piece->type)
-				return i;
+		pieces[i] = {PieceType::Pawn, Settings::engineColor, i, 1, User::Engine};
+		pieces[playerOffset + i] = {PieceType::Pawn, Settings::playerColor, i, 6, User::Player};
 
-		return p[31];
+		const auto [type, x] = backRank[i];
+		pieces[pawnCount + i] = {type, Settings::engineColor, x, 0, User::Engine};
+		pieces[playerOffset + pawnCount + i] = {type, Settings::playerColor, x, 7, User::Player};
 	}
 
-	void init()
-	{
-		// 0-7 		ENGINE PAWNS
-		// 8-15 	ENGINE PIECES
-		// 16-23 	PLAYER PAWNS
-		// 24-31 	PLAYER PIECES
+	// clear the board, then place every piece on its square
+	for (int x = 0; x < BoardSize; x++)
+		for (int y = 0; y < BoardSize; y++)
+			Sqr::at(x, y).piece = ghost(x, y);
 
-		Color engineColor = BLACK;
-		Color PlayerColor = WHITE;
-
-		// engine pawns
-		for (int i = 0; i < 8; i++)
-		{
-			p[i] = {PAWN, engineColor, i, 1, ENGINE};
-			Sqr::getSquare(i, 1).piece = p[i];
-		}
-
-		// player pawns
-		for (int i = 16; i < 24; i++)
-		{
-			p[i] = {PAWN, PlayerColor, (i - 16), 6, PLAYER};
-			Sqr::getSquare((i - 16), 6).piece = p[i];
-		}
-
-		// engine pieces
-		p[8] = {ROOK, engineColor, 0, 0, ENGINE};
-		p[9] = {ROOK, engineColor, 7, 0, ENGINE};
-		p[10] = {KNIGHT, engineColor, 1, 0, ENGINE};
-		p[11] = {KNIGHT, engineColor, 6, 0, ENGINE};
-		p[12] = {BISHOP, engineColor, 2, 0, ENGINE};
-		p[13] = {BISHOP, engineColor, 5, 0, ENGINE};
-		p[14] = {QUEEN, engineColor, 3, 0, ENGINE};
-		p[15] = {KING, engineColor, 4, 0, ENGINE};
-
-		// player pieces
-		p[24] = {ROOK, PlayerColor, 0, 7, PLAYER};
-		p[25] = {ROOK, PlayerColor, 7, 7, PLAYER};
-		p[26] = {KNIGHT, PlayerColor, 1, 7, PLAYER};
-		p[27] = {KNIGHT, PlayerColor, 6, 7, PLAYER};
-		p[28] = {BISHOP, PlayerColor, 2, 7, PLAYER};
-		p[29] = {BISHOP, PlayerColor, 5, 7, PLAYER};
-		p[30] = {QUEEN, PlayerColor, 3, 7, PLAYER};
-		p[31] = {KING, PlayerColor, 4, 7, PLAYER};
-
-
-		// update squares
-		Sqr::getSquare(0, 0).piece = p[8];
-		Sqr::getSquare(7, 0).piece = p[9];
-		Sqr::getSquare(1, 0).piece = p[10];
-		Sqr::getSquare(6, 0).piece = p[11];
-		Sqr::getSquare(2, 0).piece = p[12];
-		Sqr::getSquare(5, 0).piece = p[13];
-		Sqr::getSquare(3, 0).piece = p[14];
-		Sqr::getSquare(4, 0).piece = p[15];
-		Sqr::getSquare(0, 7).piece = p[24];
-		Sqr::getSquare(7, 7).piece = p[25];
-		Sqr::getSquare(1, 7).piece = p[26];
-		Sqr::getSquare(6, 7).piece = p[27];
-		Sqr::getSquare(2, 7).piece = p[28];
-		Sqr::getSquare(5, 7).piece = p[29];
-		Sqr::getSquare(3, 7).piece = p[30];
-		Sqr::getSquare(4, 7).piece = p[31];
-
-		// initialize empty squares as empty
-		for (int y = 2; y < 6; y++)
-			for (int x = 0; x < 8; x++)
-				Sqr::getSquare(x, y).piece = ghost(x, y);
-	}
+	for (const Piece &p : pieces)
+		Sqr::at(p.x, p.y).piece = p;
 }

@@ -1,14 +1,26 @@
 #include "ScreenSize.hh"
 
-namespace Screen
+namespace
 {
 	// the screen sizes
-	int width;
-	int height;
+	int width = 0;
+	int height = 0;
+}
 
-	void setWidth(int w) { width = w; }
-	void setHeight(int h) { height = h; }
+void Screen::setWidth(int w) noexcept
+{
+	width = w;
+}
+void Screen::setHeight(int h) noexcept
+{
+	height = h;
+}
 
-	int getWidth() { return width; }
-	int getHeight() { return height; }
+int Screen::getWidth() noexcept
+{
+	return width;
+}
+int Screen::getHeight() noexcept
+{
+	return height;
 }

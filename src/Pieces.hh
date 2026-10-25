@@ -1,28 +1,32 @@
-#ifndef PIECES_HH
-#define PIECES_HH
+#pragma once
 
+#include <span>
 #include "Piece.hh"
-#include "SquareManager.hh"
-#include "Settings.hh"
-#include "Global.hh"
 
 namespace Pieces
 {
-	// initializing pieces in their correct positions
+	// index layout:
+	// 0-7    ENGINE PAWNS
+	// 8-15   ENGINE PIECES
+	// 16-23  PLAYER PAWNS
+	// 24-31  PLAYER PIECES
+	inline constexpr int Count = 32;
+
+	inline constexpr int EngineQueenSideRook = 8;
+	inline constexpr int EngineKingSideRook = 9;
+	inline constexpr int PlayerQueenSideRook = 24;
+	inline constexpr int PlayerKingSideRook = 25;
+
+	// put all pieces in their starting positions
 	void init();
 
-	// getting individual piece
-	Piece &get(int n);
+	[[nodiscard]] Piece &get(int n);
 
-	Piece *getModify(int n);
+	[[nodiscard]] std::span<Piece, Count> all() noexcept;
 
-	Piece &getReal(Piece *piece);
+	// the piece in the piece list matching a copy (e.g. one stored in a square), or nullptr
+	[[nodiscard]] Piece *getReal(const Piece &piece) noexcept;
 
-	// set piece
-	void set(Piece p, int x, int y);
-
-	void setSquare(Piece *p, Square s);
+	// overwrite type, color and user of every piece standing at (x, y)
+	void set(const Piece &piece, int x, int y) noexcept;
 }
-
-#endif
-

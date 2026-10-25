@@ -1,44 +1,37 @@
-#ifndef GLOBAL_HH
-#define GLOBAL_HH
+#pragma once
 
+#include <cstdint>
 #include "Piece.hh"
 #include "Square.hh"
 
-#define ARRSIZE(arr) (int)(sizeof(arr)/sizeof(arr[0]))
+enum class GameState : std::uint8_t { On, Victory, Defeat, Draw, End };
 
-// return ghost struct
-Piece ghost(int x, int y);
-
-enum currentGameState { GAME_ON, VICTORY, DEFEAT, DRAW, END };
-
-class Global
+// castling and check bookkeeping for one side
+struct SideState
 {
-	public:
-		// 1 ENGINE WIN -- -1 ENGINE LOSE
-		[[maybe_unused]] static double evaluation;
+	bool kingMoved = false;
+	bool queenSideRookMoved = false;
+	bool kingSideRookMoved = false;
 
-		static bool playerTurn;
-		static currentGameState state;
-		static Square* en_passant;
+	bool canCastleKingSide = true;
+	bool canCastleQueenSide = true;
 
-		// castling
-		static bool playerKingMoved;
-		static bool playerQsideRookMoved;
-		static bool playerKsideRookMoved;
-
-		static bool engineKingMoved;
-		static bool engineQsideRookMoved;
-		static bool engineKsideRookMoved;
-
-		static bool playerCanCastleK;
-		static bool playerCanCastleQ;
-		static bool engineCanCastleK;
-		static bool engineCanCastleQ;
-
-		// check
-		static bool playerInCheck;
-		static bool engineInCheck;
-		static bool inPromotion;
+	bool inCheck = false;
 };
 
-#endif
+struct GlobalState
+{
+	bool playerTurn = true;
+	GameState state = GameState::On;
+	Square *enPassant = nullptr;
+	bool inPromotion = false;
+
+	SideState player;
+	SideState engine;
+
+	[[nodiscard]] SideState &side(User user) noexcept { return user == User::Player ? player : engine; }
+	[[nodiscard]] const SideState &side(User user) const noexcept { return user == User::Player ? player : engine; }
+};
+
+// state shared by the whole game; reset it by assigning a fresh GlobalState
+inline GlobalState Global;

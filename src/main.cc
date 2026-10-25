@@ -1,51 +1,71 @@
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <SDL2/SDL_ttf.h>
+#include <SDL.h>
+#include <SDL_image.h>
+#include <SDL_ttf.h>
+#include <cstdlib>
+#include <exception>
+#include <iostream>
+#include <stdexcept>
+#include <string>
 #include "Game.hh"
 
-#define FPS 60
-
-int main(int argc, char *argv[])
+namespace
 {
-	const int frameDelay = 1000 / FPS;
+	constexpr Uint32 TargetFps = 60;
+	constexpr Uint32 FrameDelayMs = 1000 / TargetFps;
 
-	Uint32 frameStart;
-	unsigned int frameTime;
-
-	SDL_Init(SDL_INIT_EVERYTHING);
-
-	// initialize PNG loading
-	int imgFlags = IMG_INIT_PNG;
-	if (!(IMG_Init(imgFlags) & imgFlags))
-		std::cout << "SDL_image could not initialize! " << IMG_GetError() << "\n";
-
-	// initialize SDL_TTF
-	TTF_Init();
-
-	if (TTF_WasInit() != 1)
-		std::cout << "SDL_ttf could not initialize! " << TTF_GetError() << "\n";
-
-	// create new game
-	Game* game = new Game;
-
-	// Game loop:
-	while (!game->ApplicationShouldClose)
+	// initializes SDL and its extension libraries for the lifetime of the object
+	class SdlContext
 	{
-		frameStart = SDL_GetTicks();
+	public:
+		SdlContext()
+		{
+			if (SDL_Init(SDL_INIT_VIDEO) != 0)
+				throw std::runtime_error(std::string("SDL could not initialize: ") + SDL_GetError());
 
-		game->updateGame();
+			// initialize PNG loading
+			if ((IMG_Init(IMG_INIT_PNG) & IMG_INIT_PNG) == 0)
+				throw std::runtime_error(std::string("SDL_image could not initialize: ") + IMG_GetError());
 
-		frameTime = SDL_GetTicks() - frameStart;
+			if (TTF_Init() != 0)
+				throw std::runtime_error(std::string("SDL_ttf could not initialize: ") + TTF_GetError());
+		}
 
-		if (frameDelay > frameTime)
-			SDL_Delay(frameDelay - frameTime);
+		~SdlContext()
+		{
+			TTF_Quit();
+			IMG_Quit();
+			SDL_Quit();
+		}
+
+		SdlContext(const SdlContext &) = delete;
+		SdlContext &operator=(const SdlContext &) = delete;
+	};
+}
+
+int main(int /*argc*/, char * /*argv*/[])
+{
+	try
+	{
+		const SdlContext sdl;
+		Game game;
+
+		// Game loop:
+		while (!game.shouldClose())
+		{
+			const Uint32 frameStart = SDL_GetTicks();
+
+			game.updateGame();
+
+			const Uint32 frameTime = SDL_GetTicks() - frameStart;
+			if (frameTime < FrameDelayMs)
+				SDL_Delay(FrameDelayMs - frameTime);
+		}
 	}
-	
-	// end the program
-	delete game;
-	TTF_Quit();
-	IMG_Quit();
-	SDL_Quit();
+	catch (const std::exception &e)
+	{
+		std::cerr << "Fatal error: " << e.what() << '\n';
+		return EXIT_FAILURE;
+	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }

@@ -1,15 +1,12 @@
-#ifndef SCREENSIZE_HH
-#define SCREENSIZE_HH
+#pragma once
 
 namespace Screen
 {
 	// setters
-	void setWidth(int w);
-	void setHeight(int h);
+	void setWidth(int w) noexcept;
+	void setHeight(int h) noexcept;
 
 	// getters
-	int getWidth();
-	int getHeight();
+	[[nodiscard]] int getWidth() noexcept;
+	[[nodiscard]] int getHeight() noexcept;
 }
-
-#endif
