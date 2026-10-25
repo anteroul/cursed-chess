@@ -2,7 +2,6 @@
 
 #include <iostream>
 #include "Renderer.hh"
-#include "ScreenSize.hh"
 
 Text::Text(TTF_Font *font, const std::string &text, SDL_Color color, SDL_Point pos, int wrapWidth)
 	: position{pos.x, pos.y, 0, 0}
@@ -20,9 +19,14 @@ Text::Text(TTF_Font *font, const std::string &text, SDL_Color color, SDL_Point p
 	SDL_QueryTexture(texture.get(), nullptr, nullptr, &position.w, &position.h);
 }
 
-void Text::render()
+void Text::renderAt(int x, int y) const
 {
-	position.x = Screen::getWidth() - Screen::getWidth() / 5;
+	if (texture)
+		Renderer::drawTexture(texture.get(), {x, y, position.w, position.h});
+}
+
+void Text::render() const
+{
 	if (texture)
 		Renderer::drawTexture(texture.get(), position);
 }

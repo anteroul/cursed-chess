@@ -16,6 +16,8 @@ Window::Window()
 	if (!renderer)
 		throw std::runtime_error(std::string("Could not create renderer: ") + SDL_GetError());
 
+	// allow translucent fills, e.g. dimming the board behind the promotion buttons
+	SDL_SetRenderDrawBlendMode(renderer.get(), SDL_BLENDMODE_BLEND);
 	Renderer::set(renderer.get());
 	publishSize();
 }
