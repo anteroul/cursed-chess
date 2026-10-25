@@ -40,6 +40,9 @@ Game::Game(const std::optional<NetworkOptions> &networkOptions)
 {
 	resetGame();
 
+	// whoever plays black sees the board from their own side
+	Board::setFlipped(network && network->localSide() == User::Engine);
+
 	if (network)
 	{
 		for (const std::string &address : network->localAddresses())
@@ -75,8 +78,13 @@ void Game::eventHandler()
 
 			case SDL_MOUSEBUTTONDOWN:
 				mousePos = {e.button.x, e.button.y};
-				if (!Global.inPromotion && canMoveLocally())
+				if (!canMoveLocally())
+					break;
+
+				if (!Global.inPromotion)
 					onMouseClick();
+				else if (const auto piece = promotionTable.pieceAt(mousePos))
+					choosePromotion(*piece);
 				break;
 
 			case SDL_KEYDOWN:
@@ -97,7 +105,11 @@ void Game::eventHandler()
 
 void Game::onMouseClick()
 {
-	selectedSquare = &GUI::squareAt(mousePos);
+	Square *clicked = GUI::squareAt(mousePos);
+	if (!clicked)
+		return;
+
+	selectedSquare = clicked;
 
 	// show possible moves
 	const Piece &piece = selectedSquare->piece;
@@ -130,6 +142,11 @@ void Game::onPromotionKey(SDL_Keycode key)
 			return;
 	}
 
+	choosePromotion(promoted);
+}
+
+void Game::choosePromotion(PieceType promoted)
+{
 	// the promoting pawn stands on the selected (target) square
 	assert(selectedSquare);
 	promote(*selectedSquare, promoted);
@@ -249,8 +266,12 @@ void Game::render()
 	Renderer::setColor(64, 64, 64);
 	Renderer::clear();
 
+	// the console is the right fifth of the window
 	for (Text &line : console)
+	{
+		line.position.x = Screen::getWidth() - Screen::getWidth() / 5;
 		line.render();
+	}
 
 	Board::render();
 
@@ -286,8 +307,8 @@ void Game::render()
 	for (const Piece &piece : Pieces::all())
 		pieces.render(piece);
 
-	if (Global.inPromotion)
-		promotionTable.render();
+	if (Global.inPromotion && canMoveLocally())
+		promotionTable.render(mousePos);
 
 	Renderer::present();
 }

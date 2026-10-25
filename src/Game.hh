@@ -27,6 +27,7 @@ private:
 	void eventHandler();
 	void onMouseClick();
 	void onPromotionKey(SDL_Keycode key);
+	void choosePromotion(PieceType promoted);
 	void update();
 	void render();
 	void playTurn();
