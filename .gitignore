@@ -25,3 +25,6 @@ shell.nix
 # ignore build directory and clangd index
 build/
 .cache/
+
+# compile database from an accidental in-source configure
+/compile_commands.json

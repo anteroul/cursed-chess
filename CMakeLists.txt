@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.21)
-project(cursed-chess LANGUAGES CXX)
+cmake_minimum_required(VERSION 3.25)
+project(nx-chess VERSION 1.0 LANGUAGES CXX)
 
 # compile_commands.json for clangd
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -23,14 +23,30 @@ find_sdl_library(SDL2 SDL2::SDL2)
 find_sdl_library(SDL2_image SDL2_image::SDL2_image)
 find_sdl_library(SDL2_ttf SDL2_ttf::SDL2_ttf)
 
-add_executable(cursed-chess
+# find shared libraries (libnexilis) relative to the executable, so the build survives moving the checkout
+set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
+
+# Nexilis networking library (git submodule), used for multiplayer games
+if (NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/nexilis/nexilis/CMakeLists.txt")
+	message(FATAL_ERROR "Nexilis is missing. Run: git submodule update --init --recursive")
+endif ()
+# Nexilis' public headers include OpenSSL. Under Nix the compiler wrapper supplies that include path,
+# so CMake treats it as implicit and leaves it out of compile_commands.json; list it explicitly for clangd.
+find_package(OpenSSL 1.1.1 REQUIRED)
+set(CMAKE_CXX_STANDARD_INCLUDE_DIRECTORIES ${OPENSSL_INCLUDE_DIR})
+
+add_subdirectory(external/nexilis/nexilis nexilis EXCLUDE_FROM_ALL SYSTEM)
+
+add_executable(nx-chess
 		src/main.cc
+		src/Assets.cc
 		src/Board.cc
 		src/FontLoader.cc
 		src/Game.cc
 		src/GameManager.cc
 		src/GUI.cc
 		src/LegalMoves.cc
+		src/Network.cc
 		src/Move.cc
 		src/PieceFactory.cc
 		src/Pieces.cc
@@ -43,18 +59,19 @@ add_executable(cursed-chess
 		)
 
 # pin the standard so the flag always reaches compile_commands.json (clangd)
-set_target_properties(cursed-chess PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
+set_target_properties(nx-chess PROPERTIES CXX_STANDARD 20 CXX_STANDARD_REQUIRED ON CXX_EXTENSIONS OFF)
 
 if (MSVC)
-	target_compile_options(cursed-chess PRIVATE /W4 /permissive-)
+	target_compile_options(nx-chess PRIVATE /W4 /permissive-)
 else ()
-	target_compile_options(cursed-chess PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
+	target_compile_options(nx-chess PRIVATE -Wall -Wextra -Wpedantic -Wshadow)
 endif ()
 
-# assets are loaded from the source tree, so the binary works from any directory
-target_compile_definitions(cursed-chess PRIVATE CURSED_CHESS_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Assets")
+# preferred asset location; Assets.cc falls back to paths relative to the executable
+target_compile_definitions(nx-chess PRIVATE NX_CHESS_ASSET_DIR="${CMAKE_CURRENT_SOURCE_DIR}/Assets"
+		NX_CHESS_VERSION="${PROJECT_VERSION}")
 
 if (TARGET SDL2::SDL2main)
-	target_link_libraries(cursed-chess PRIVATE SDL2::SDL2main)
+	target_link_libraries(nx-chess PRIVATE SDL2::SDL2main)
 endif ()
-target_link_libraries(cursed-chess PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf)
+target_link_libraries(nx-chess PRIVATE SDL2::SDL2 SDL2_image::SDL2_image SDL2_ttf::SDL2_ttf nexilis)

@@ -1,5 +1,5 @@
 {
-  description = "cursed-chess: a chess game written in C++ with SDL2";
+  description = "nx-chess: a chess game written in C++ with SDL2 and Nexilis multiplayer";
 
   inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
 
@@ -15,6 +15,7 @@
             clang-tools # clangd, clang-format
             cmake
             gcc
+            openssl # Nexilis
             pkg-config
             SDL2
             SDL2_image
