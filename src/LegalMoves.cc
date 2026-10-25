@@ -1,334 +1,184 @@
 #include "LegalMoves.hh"
 
-namespace LegalMove
+#include <algorithm>
+#include <array>
+#include <cstdlib>
+#include <utility>
+#include "Global.hh"
+#include "Pieces.hh"
+#include "SquareManager.hh"
+
+namespace
 {
-	// raw legal moves
-	std::vector<Square> sqrs;
+	using Moves = std::vector<Square>;
+	using Direction = std::pair<int, int>;
 
-	// KNIGHT, KING
-	void xyFindFunc(Piece p, int x, int y)
+	constexpr std::array<Direction, 8> knightSteps{
+		{{-2, -1}, {-2, 1}, {-1, -2}, {-1, 2}, {1, -2}, {1, 2}, {2, -1}, {2, 1}}};
+
+	constexpr std::array<Direction, 8> allDirections{
+		{{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}}};
+
+	constexpr std::array<Direction, 4> diagonals{{{1, 1}, {1, -1}, {-1, 1}, {-1, -1}}};
+	constexpr std::array<Direction, 4> orthogonals{{{1, 0}, {0, 1}, {-1, 0}, {0, -1}}};
+
+	// KNIGHT, KING: a single step to an empty or enemy square
+	void addStep(Moves &moves, const Piece &p, Direction d)
 	{
-		// pointing to square 
-		Square *s = Sqr::squareHelper((p.x + x), (p.y + y));
-
-		// if square is not on board
-		if (s != nullptr)
-		{
-			// if square is empty
-			if (s->piece.type == NONE)
-				sqrs.push_back(*s);
-
-				// add if enemy
-			else if (s->piece.color != p.color)
-				sqrs.push_back(*s);
-		}
+		const Square *s = Sqr::find(p.x + d.first, p.y + d.second);
+		if (s && (s->piece.isEmpty() || s->piece.color != p.color))
+			moves.push_back(*s);
 	}
 
-	// ROOK, BISHOP, QUEEN
-	void LooperFunc(Piece p, int x, int y)
+	// ROOK, BISHOP, QUEEN: slide until blocked, including a capture of the blocking enemy
+	void addSlide(Moves &moves, const Piece &p, Direction d)
 	{
-		// max distance
-		for (int i = 1; i < 8; i++)
+		for (int i = 1; i < BoardSize; i++)
 		{
-			Square *s = Sqr::squareHelper(p.x + i * x, p.y + i * y);
-
-			// if square is not in board
-			if (s != nullptr)
-			{
-				// add if square is empty
-				if (s->piece.type == NONE)
-				{
-					sqrs.push_back(*s);
-					continue;
-				} else
-				{
-					if (s->piece.color != p.color)
-						sqrs.push_back(*s);
-					break;
-				}
-			} else
-				break;
-		}
-	}
-
-	void Castling(Piece p, bool dir)
-	{
-		// different directions for castling
-		int n = 0;
-		dir ? n = 1 : n = -1;
-
-		// max distance
-		for (int i = 1; i < 5; i++)
-		{
-			// king side castle is smaller
-			if (dir && i == 4)
+			const Square *s = Sqr::find(p.x + i * d.first, p.y + i * d.second);
+			if (!s)
 				break;
 
-			Square *s = Sqr::squareHelper(p.x + i * n, p.y);
-
-			// if not on board, this should never happen
-			if (s != nullptr)
+			if (s->piece.isEmpty())
 			{
-				// empty square
-				if (s->piece.type == NONE)
-					continue;
-
-					// something in the middle, can't castle
-				else if (s->piece.type != NONE && s->piece.type != ROOK)
-					break;
-
-					// can castle
-				else
-					sqrs.push_back(*Sqr::squareHelper(p.x + 2 * n, p.y));
+				moves.push_back(*s);
+				continue;
 			}
+
+			if (s->piece.color != p.color)
+				moves.push_back(*s);
+			break;
 		}
 	}
 
-	void PawnFunc(Piece p, bool player)
+	// the path to the rook must be empty
+	void addCastling(Moves &moves, const Piece &king, bool kingSide)
 	{
-		int m = -1;
+		const int dir = kingSide ? 1 : -1;
+		const int rookDistance = kingSide ? 3 : 4;
 
-		// first row is special
-		if (player)
+		for (int i = 1; i <= rookDistance; i++)
 		{
-			if (p.y == 6)
-				if (Sqr::squareHelper(p.x, 4)->piece.type == NONE && Sqr::squareHelper(p.x, 5)->piece.type == NONE)
-					sqrs.push_back(*Sqr::squareHelper(p.x, 4));
-		} else
-		{
-			if (p.y == 1)
-				if (Sqr::squareHelper(p.x, 3)->piece.type == NONE && Sqr::squareHelper(p.x, 2)->piece.type == NONE)
-					sqrs.push_back(*Sqr::squareHelper(p.x, 3));
+			const Square *s = Sqr::find(king.x + i * dir, king.y);
+			if (!s)
+				break;
 
-			m = 1;
+			if (s->piece.isEmpty())
+				continue;
+
+			if (s->piece.type == PieceType::Rook && i == rookDistance)
+				moves.push_back(Sqr::at(king.x + 2 * dir, king.y));
+			break;
 		}
-
-		// left
-		Square *l = Sqr::squareHelper(p.x + 1 * m, p.y + 1 * m);
-
-		// check that square is on the board
-		if (l != nullptr)
-
-			// check if square is empty of pieces
-			if (l->piece.type != NONE)
-
-				// check that the square color is different to piece
-				if (l->piece.color != p.color)
-
-					// add square
-					sqrs.push_back(*l);
-
-		// center
-		Square *c = Sqr::squareHelper(p.x, p.y + 1 * m);
-		if (c != nullptr)
-			if (c->piece.type == NONE)
-				sqrs.push_back(*c);
-
-		// right
-		Square *r = Sqr::squareHelper(p.x - 1 * m, p.y + 1 * m);
-		if (r != nullptr)
-			if (r->piece.type != NONE)
-				if (r->piece.color != p.color)
-					sqrs.push_back(*r);
-
-		// en passant
-		if (Global::en_passant)
-			if (Global::en_passant->y == p.y + 1 * m)
-				if (Global::en_passant->x == p.x + 1 || Global::en_passant->x == p.x - 1)
-					sqrs.push_back(*Global::en_passant);
 	}
 
-	// get legal moves for king
-	bool kingInDanger(Square square, Piece piece)
+	void addPawnMoves(Moves &moves, const Piece &p)
 	{
-		// get opponents pieces
-		int a = piece.user == PLAYER ? 0 : 16;
-		int b = piece.user == PLAYER ? 16 : 32;
+		const bool player = p.user == User::Player;
+		const int forward = player ? -1 : 1;
+		const int startRank = player ? 6 : 1;
 
-		// set the fake move
-		Sqr::getSquare(square.x, square.y).piece = piece;
+		// double step from the starting rank
+		if (p.y == startRank && Sqr::at(p.x, p.y + forward).piece.isEmpty()
+			&& Sqr::at(p.x, p.y + 2 * forward).piece.isEmpty())
+			moves.push_back(Sqr::at(p.x, p.y + 2 * forward));
 
-		// set original square to empty
-		Sqr::getSquare(piece.x, piece.y).piece = ghost(piece.x, piece.y);
+		const auto addCapture = [&](int dx) {
+			const Square *s = Sqr::find(p.x + dx, p.y + forward);
+			if (s && !s->piece.isEmpty() && s->piece.color != p.color)
+				moves.push_back(*s);
+		};
 
-		for (int i = a; i < b; i++)
-		{
-			// get all legal moves
-			std::vector<Square> v = LegalMove::get(Pieces::get(i));
+		addCapture(forward);
 
-			if (!v.empty())
-			{
-				for (auto j = v.begin(); j < v.end(); j++)
-				{
-					// if king is in check
-					if (j->piece.type == KING)
-					{
-						// back to normal
-						Sqr::getSquare(square.x, square.y).piece = square.piece;
-						Sqr::getSquare(piece.x, piece.y).piece = piece;
-						return true;
-					}
-				}
-			}
-		}
+		if (const Square *s = Sqr::find(p.x, p.y + forward); s && s->piece.isEmpty())
+			moves.push_back(*s);
 
-		Sqr::getSquare(square.x, square.y).piece = square.piece;
-		Sqr::getSquare(piece.x, piece.y).piece = piece;
-		return false;
+		addCapture(-forward);
+
+		if (const Square *ep = Global.enPassant; ep && ep->y == p.y + forward && std::abs(ep->x - p.x) == 1)
+			moves.push_back(*ep);
 	}
 
-
-	// get legal moves
-	std::vector<Square> getLegal(Piece piece)
+	// play the move on the board temporarily and see if any opponent piece can then take the king
+	bool leavesKingInCheck(const Piece &piece, const Square &target)
 	{
-		// get raw moves for the piece
-		std::vector<Square> v = LegalMove::get(piece);
+		Square &from = Sqr::at(piece.x, piece.y);
+		Square &to = Sqr::at(target.x, target.y);
+		const Piece captured = to.piece;
 
-		if (piece.type != KING)
-		{
-			// loop all the possible moves 
-			for (auto i = v.begin(); i != v.end(); i++)
-			{
-				// is everything back to normal?
-				bool backToNormal = false;
+		to.piece = piece;
+		from.piece = ghost(piece.x, piece.y);
 
-				// get original value of piece in the square where the move happens
-				Piece move = Sqr::getSquare(i->x, i->y).piece;
+		const User opponent = opponentOf(piece.user);
+		const bool inCheck = std::ranges::any_of(Pieces::all(), [&](const Piece &attacker) {
+			// skip pieces of the other side and the piece captured by this move
+			if (attacker.user != opponent || Sqr::at(attacker.x, attacker.y).piece.user != opponent)
+				return false;
 
-				// set the fake move
-				Sqr::getSquare(i->x, i->y).piece = piece;
+			return std::ranges::any_of(LegalMove::pseudoLegal(attacker),
+									   [](const Square &s) { return s.piece.type == PieceType::King; });
+		});
 
-				// set piece's square to empty
-				Sqr::getSquare(piece.x, piece.y).piece = ghost(piece.x, piece.y);
-
-				// getting the opponent's pieces
-				int a = piece.user == PLAYER ? 0 : 16;
-				int b = piece.user == PLAYER ? 16 : 32;
-
-				// loop all opponent's pieces
-				for (int j = a; j < b; j++)
-				{
-					// if piece isn't captured in opponents move
-					if (Sqr::getSquare(Pieces::get(j).x, Pieces::get(j).y).piece.user != piece.user)
-					{
-						// get all raw legal moves for the opponent's pieces
-						std::vector<Square> temp = LegalMove::get(Pieces::get(j));
-
-						// loop legal moves for the piece
-						for (auto k = temp.begin(); k != temp.end(); k++)
-						{
-							// king is in check
-							if (k->piece.type == KING)
-							{
-								// set move back to normal
-								if (!temp.empty())
-								{
-									Sqr::getSquare(i->x, i->y).piece = move;
-									Sqr::getSquare(piece.x, piece.y).piece = piece;
-									backToNormal = true;
-								}
-
-								// delete move, subtract from moves after deletion
-								if (!v.empty())
-									v.erase(i--);
-							}
-						}
-					}
-				}
-
-				if (!backToNormal)
-				{
-					Sqr::getSquare(i->x, i->y).piece = move;
-					Sqr::getSquare(piece.x, piece.y).piece = piece;
-				}
-			}
-		} else
-		{
-			// remove illegal moves for a king
-			for (auto i = v.begin(); i != v.end(); i++)
-				if (kingInDanger(Sqr::getSquare(i->x, i->y), piece))
-					v.erase(i--);
-		}
-
-		// return legal moves
-		return v;
+		to.piece = captured;
+		from.piece = piece;
+		return inCheck;
 	}
+}
 
-	// get raw moves
-	std::vector<Square> get(Piece piece)
+std::vector<Square> LegalMove::pseudoLegal(const Piece &piece)
+{
+	Moves moves;
+
+	switch (piece.type)
 	{
-		sqrs.clear();
+		case PieceType::Pawn:
+			addPawnMoves(moves, piece);
+			break;
 
-		switch (piece.type)
+		case PieceType::Knight:
+			for (const Direction d : knightSteps)
+				addStep(moves, piece, d);
+			break;
+
+		case PieceType::Queen:
+			for (const Direction d : allDirections)
+				addSlide(moves, piece, d);
+			break;
+
+		case PieceType::King:
 		{
-			case PAWN:
-				if (piece.user == PLAYER)
-					PawnFunc(piece, true);
-				else
-					PawnFunc(piece, false);
-				break;
+			for (const Direction d : allDirections)
+				addStep(moves, piece, d);
 
-
-			case KNIGHT:
-				for (int i = -2; i < 3; i++)
-					for (int j = -2; j < 3; j++)
-						if ((i != 0 && j != 0) && abs(i) != abs(j))
-							xyFindFunc(piece, i, j);
-				break;
-
-
-			case QUEEN:
-				for (int i = -1; i < 2; i++)
-					for (int j = -1; j < 2; j++)
-						if (!(i == 0 && j == 0))
-							LooperFunc(piece, i, j);
-				break;
-
-
-			case KING:
-				for (int i = -1; i < 2; i++)
-					for (int j = -1; j < 2; j++)
-						if (!(i == 0 && j == 0))
-							xyFindFunc(piece, i, j);
-
-				if (piece.user == PLAYER)
-				{
-					if (Global::playerCanCastleK)
-						Castling(piece, true);
-
-					if (Global::playerCanCastleQ)
-						Castling(piece, false);
-				} else
-				{
-					if (Global::engineCanCastleK)
-						Castling(piece, true);
-
-					if (Global::engineCanCastleQ)
-						Castling(piece, false);
-				}
-				break;
-
-
-			case BISHOP:
-				LooperFunc(piece, 1, 1);
-				LooperFunc(piece, 1, -1);
-				LooperFunc(piece, -1, 1);
-				LooperFunc(piece, -1, -1);
-				break;
-
-
-			case ROOK:
-				LooperFunc(piece, 1, 0);
-				LooperFunc(piece, 0, 1);
-				LooperFunc(piece, -1, 0);
-				LooperFunc(piece, 0, -1);
-				break;
-
-			case NONE:
-				break;
+			const SideState &side = Global.side(piece.user);
+			if (side.canCastleKingSide)
+				addCastling(moves, piece, true);
+			if (side.canCastleQueenSide)
+				addCastling(moves, piece, false);
+			break;
 		}
 
-		// return raw moves
-		return sqrs;
+		case PieceType::Bishop:
+			for (const Direction d : diagonals)
+				addSlide(moves, piece, d);
+			break;
+
+		case PieceType::Rook:
+			for (const Direction d : orthogonals)
+				addSlide(moves, piece, d);
+			break;
+
+		case PieceType::None:
+			break;
 	}
+
+	return moves;
+}
+
+std::vector<Square> LegalMove::legal(const Piece &piece)
+{
+	Moves moves = pseudoLegal(piece);
+	std::erase_if(moves, [&](const Square &target) { return leavesKingInCheck(piece, target); });
+	return moves;
 }

@@ -1,13 +1,10 @@
-# Ukko Chess Engine v0.4.5 alpha
+# Ukko Chess Engine v0.4.6 alpha
 
-### ATTENTION! This is an old repository, please for the love of God do not code C++ like this.
-
-#### Version changes:
-- Abstracted promotion table UI into a separate class which inherits the GUI class.
-- Fixed the memory leak when exiting the program.
-
-#### TODO:
-- Make GUI to inherit the Game class.
-- Separate Game class functionalities into separate data structures (std::function might be useful here).
-- Implement Button class to inherit GUI.
-- Tidy-up the Game::Render() function.
+#### Building:
+Requires a C++20 compiler, CMake 3.21+, SDL2, SDL2_image and SDL2_ttf.
+```sh
+cmake -S . -B build
+cmake --build build
+./build/cursed-chess
+```
+On Nix, `nix develop` opens a shell with all of the above.

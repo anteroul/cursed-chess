@@ -1,15 +1,9 @@
-#ifndef SETTINGS_HH
-#define SETTINGS_HH
+#pragma once
 
 #include "Piece.hh"
 
-class Settings
+namespace Settings
 {
-	public:
-		static int PlayerColor;
-		static int EngineColor;
-		static bool showEnemyLegalMoves;
-
-};
-
-#endif
+	inline constexpr Color playerColor = Color::White;
+	inline constexpr Color engineColor = Color::Black;
+}

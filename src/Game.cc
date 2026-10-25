@@ -1,35 +1,38 @@
 #include "Game.hh"
 
-Game::Game()
+#include <algorithm>
+#include <cassert>
+#include "Assets.hh"
+#include "Board.hh"
+#include "FontLoader.hh"
+#include "GameManager.hh"
+#include "Global.hh"
+#include "LegalMoves.hh"
+#include "Move.hh"
+#include "Pieces.hh"
+#include "Renderer.hh"
+#include "ScreenSize.hh"
+#include "Settings.hh"
+#include "SquareManager.hh"
+
+namespace
 {
-	// create new window and renderer
-	window = new Window;
+	[[nodiscard]] User currentSide() noexcept
+	{
+		return Global.playerTurn ? User::Player : User::Engine;
+	}
 
-	// make board
-	board = new Board;
-
-	// create pieces
-	pieces = new PieceFactory;
-
-	// initialize helping namespace
-	PieceRenderer::init(pieces);
-
-	// initialize pieces in their correct places
-	Pieces::init();
-
-    // initialize pawn promotion UI
-    promotionTable = new PromotionTable;
-
-	// white starts game
-	Settings::PlayerColor == WHITE ? Global::playerTurn = true : Global::playerTurn = false;
+	[[nodiscard]] bool hasLegalMove(User side)
+	{
+		return std::ranges::any_of(Pieces::all(), [side](const Piece &p) {
+			return p.user == side && !p.isEmpty() && !LegalMove::legal(p).empty();
+		});
+	}
 }
 
-Game::~Game()
+Game::Game() : consoleFont{FontLoader::load(Assets::path("Fonts/mytype.ttf"), 14)}
 {
-	delete promotionTable;
-	delete pieces;
-	delete board;
-	delete window;
+	resetGame();
 }
 
 void Game::updateGame()
@@ -41,73 +44,94 @@ void Game::updateGame()
 
 void Game::eventHandler()
 {
+	SDL_Event e;
 	while (SDL_PollEvent(&e))
 	{
 		// resize window
-		window->resize(e);
+		window.handleEvent(e);
 
-		// close application
-		if ((e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_ESCAPE) || e.type == SDL_QUIT)
-			ApplicationShouldClose = true;
-
-		// when mouse is moved
-		if (e.type == SDL_MOUSEMOTION)
+		switch (e.type)
 		{
-			// Get mouse position
-			SDL_GetMouseState(&mousePos.x, &mousePos.y);
+			case SDL_QUIT:
+				applicationShouldClose = true;
+				break;
+
+			case SDL_MOUSEMOTION:
+				mousePos = {e.motion.x, e.motion.y};
+				break;
+
+			case SDL_MOUSEBUTTONDOWN:
+				mousePos = {e.button.x, e.button.y};
+				if (!Global.inPromotion)
+					onMouseClick();
+				break;
+
+			case SDL_KEYDOWN:
+				if (e.key.keysym.sym == SDLK_ESCAPE)
+					applicationShouldClose = true;
+				// if game is over press 'R' to reset and play again :)
+				else if (e.key.keysym.sym == SDLK_r)
+					resetGame();
+				else if (Global.inPromotion)
+					onPromotionKey(e.key.keysym.sym);
+				break;
+
+			default:
+				break;
 		}
-
-        if (!Global::inPromotion) {
-            // when mouse is clicked
-            if (e.type == SDL_MOUSEBUTTONDOWN) {
-                // get mouse position
-                SDL_GetMouseState(&mousePos.x, &mousePos.y);
-                selectedSquare = GUI::onSelect(mousePos);
-
-                // render possible moves
-                if (Global::playerTurn) {
-                    if (selectedSquare->piece.type != NONE && selectedSquare->piece.user == PLAYER) {
-                        originalSquare = selectedSquare;
-                        legalMoves = LegalMove::getLegal(originalSquare->piece);
-                        isPieceSelected = true;
-                    }
-                } else {
-                    if (selectedSquare->piece.type != NONE && selectedSquare->piece.user == ENGINE) {
-                        originalSquare = selectedSquare;
-                        legalMoves = LegalMove::getLegal(originalSquare->piece);
-                        isPieceSelected = true;
-                    }
-                }
-            }
-        } else {
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_1)
-                Pieces::getReal(&selectedSquare->piece).type = QUEEN;
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_2)
-                Pieces::getReal(&selectedSquare->piece).type = ROOK;
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_3)
-                Pieces::getReal(&selectedSquare->piece).type = KNIGHT;
-            if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_4)
-                Pieces::getReal(&selectedSquare->piece).type = BISHOP;
-            if (selectedSquare->piece.type != PAWN) {
-                Global::inPromotion = false;
-                if (Global::playerTurn)
-                    Global::playerTurn = false;
-                else
-                    Global::playerTurn = true;
-            }
-        }
-
-		// if game is over press 'R' to reset and play again :)
-		if (e.type == SDL_KEYDOWN && e.key.keysym.sym == SDLK_r)
-			resetGame();
 	}
+}
+
+void Game::onMouseClick()
+{
+	selectedSquare = &GUI::squareAt(mousePos);
+
+	// show possible moves
+	const Piece &piece = selectedSquare->piece;
+	if (!piece.isEmpty() && piece.user == currentSide())
+	{
+		originalSquare = selectedSquare;
+		legalMoves = LegalMove::legal(piece);
+		isPieceSelected = true;
+	}
+}
+
+void Game::onPromotionKey(SDL_Keycode key)
+{
+	PieceType promoted{};
+	switch (key)
+	{
+		case SDLK_1:
+			promoted = PieceType::Queen;
+			break;
+		case SDLK_2:
+			promoted = PieceType::Rook;
+			break;
+		case SDLK_3:
+			promoted = PieceType::Knight;
+			break;
+		case SDLK_4:
+			promoted = PieceType::Bishop;
+			break;
+		default:
+			return;
+	}
+
+	// the promoting pawn stands on the selected (target) square
+	assert(selectedSquare);
+	if (Piece *pawn = Pieces::getReal(selectedSquare->piece))
+		pawn->type = promoted;
+	selectedSquare->piece.type = promoted;
+
+	Global.inPromotion = false;
+	Global.playerTurn = !Global.playerTurn;
 }
 
 // update turns
 void Game::update()
 {
-	if (Global::state == GAME_ON)
-		Global::playerTurn ? playerPlayMove() : enginePlayMove();
+	if (Global.state == GameState::On)
+		playTurn();
 }
 
 void Game::render()
@@ -116,240 +140,148 @@ void Game::render()
 	Renderer::setColor(64, 64, 64);
 	Renderer::clear();
 
-	// render console
-	for (auto & i : console)
-		if (i) i->render();
+	for (Text &line : console)
+		line.render();
 
-	// render board
-	board->render();
+	Board::render();
 
 	if (selectedSquare)
 	{
 		// color selected square
 		Renderer::setColor(0, 0, 255);
 		Renderer::fillRect(selectedSquare->rect);
-	}
 
-	for(auto& legalMove : legalMoves)
-	{
-		if(selectedSquare && isPieceSelected)
+		if (isPieceSelected)
 		{
 			// color legal moves
 			Renderer::setColor(255, 0, 0);
-			Renderer::fillRect(legalMove.rect);
+			for (const Square &move : legalMoves)
+				Renderer::fillRect(move.rect);
 		}
 	}
 
-	for(int i = 0; i < 8; i++)
+	// color the square where the mouse is
+	for (int x = 0; x < BoardSize; x++)
 	{
-		for(int j = 0; j < 8; j++)
+		for (int y = 0; y < BoardSize; y++)
 		{
-			// color the square where the mouse is
-			if (GUI::onMouseRollOver(mousePos, Sqr::getSquare(i, j).rect))
+			const SDL_Rect &rect = Sqr::at(x, y).rect;
+			if (GUI::isMouseOver(mousePos, rect))
 			{
 				Renderer::setColor(0, 255, 0);
-				Renderer::fillRect(Sqr::getSquare(i, j).rect);
+				Renderer::fillRect(rect);
 			}
 		}
 	}
 
-	// render pieces
-	for (int i = 0; i < 32; i++)
-		PieceRenderer::renderInPosition(Pieces::get(i));
+	for (const Piece &piece : Pieces::all())
+		pieces.render(piece);
 
-	if (Global::inPromotion)
-	{
-		Renderer::setColor(128, 128, 128);
-		Renderer::fillRect(promotionTable->canvas);
-        // render tooltips
-        /*
-        for (auto & i : tooltips)
-            i.render();
-        */
-        // band-aid solution:
-        SDL_RenderCopy(Renderer::get(), promotionTable->promotionTableTooltips, nullptr, &promotionTable->canvas);
-    }
+	if (Global.inPromotion)
+		promotionTable.render();
 
-	// main rendering
-	Renderer::render();
+	Renderer::present();
 }
 
-bool Game::moveSetup()
-{
-	playerPieces.clear();
-	playerMoves.clear();
-
-	if (Global::playerTurn)
-	{
-		// "raw pieces"
-		for (int i = 16; i < 32; i++)
-			playerPieces.push_back(Pieces::get(i));
-
-		// loop all pieces
-		for (auto &i: playerPieces)
-		{
-			// filter pieces
-			if (i.type != NONE && i.user == PLAYER)
-			{
-				// get all legal moves
-				std::vector<Square> temp = LegalMove::getLegal(i);
-
-				for (auto &j: temp)
-					playerMoves.push_back(j);
-			}
-		}
-	}
-	else
-	{
-		// "raw pieces"
-		for (int i = 0; i < 16; i++)
-			playerPieces.push_back(Pieces::get(i));
-
-		// loop all pieces
-		for (auto &i: playerPieces)
-		{
-			// filter pieces
-			if (i.type != NONE && i.user == ENGINE)
-			{
-				// get all legal moves
-				std::vector<Square> temp = LegalMove::getLegal(i);
-
-				for (auto &j: temp)
-					playerMoves.push_back(j);
-			}
-		}
-	}
-
-	return !playerMoves.empty();
-}
-
-void Game::playerPlayMove()
+void Game::playTurn()
 {
 	GameManager::update();
 
-	if(!moveSetup())
+	const User side = currentSide();
+	if (!hasLegalMove(side))
 	{
-		if(Global::playerInCheck)
-			Global::state = DEFEAT;
+		if (!Global.side(side).inCheck)
+			Global.state = GameState::Draw;
 		else
-			Global::state = DRAW;
+			Global.state = side == User::Player ? GameState::Defeat : GameState::Victory;
+
+		updateConsole();
+		return;
 	}
-	else
+
+	// wait until a new square is selected
+	if (!isPieceSelected || selectedSquare == originalSquare)
+		return;
+
+	const auto move = std::ranges::find_if(
+		legalMoves, [this](const Square &s) { return s.x == selectedSquare->x && s.y == selectedSquare->y; });
+
+	if (move == legalMoves.end())
 	{
-		// if selected new square
-		if (selectedSquare != originalSquare && isPieceSelected)
-		{
-			// loop legal moves for the selected piece
-			for (auto& i : legalMoves)
-            {
-                if (selectedSquare->x == i.x && selectedSquare->y == i.y)
-                    executePlayerMove(i);
-                else
-                    isPieceSelected = false;
-            }
-		}
+		isPieceSelected = false;
+		return;
 	}
+
+	// copy: executeMove clears legalMoves
+	const Square target = *move;
+	executeMove(target);
 }
 
-// Engine's move:
-void Game::enginePlayMove()
+void Game::executeMove(const Square &target)
 {
-	GameManager::update();
+	const User side = currentSide();
+	const auto all = Pieces::all();
+	const auto piece = std::ranges::find_if(
+		all, [&](const Piece &p) { return p.user == side && !p.isEmpty() && &Sqr::at(p.x, p.y) == originalSquare; });
 
-	if(!moveSetup())
+	if (piece == all.end())
+		return;
+
+	// pawn promotion
+	if (piece->type == PieceType::Pawn && (target.y == 0 || target.y == BoardSize - 1))
+		Global.inPromotion = true;
+
+	lastMove = Move::execute(*piece, target);
+	legalMoves.clear();
+	updateConsole();
+
+	if (!Global.inPromotion)
 	{
-		if(Global::engineInCheck)
-			Global::state = VICTORY;
-		else
-			Global::state = DRAW;
-	}
-	else
-	{
-		// if selected new square
-		if (selectedSquare != originalSquare && isPieceSelected)
-		{
-			// loop legal moves for the selected piece
-			for (auto& i : legalMoves)
-			{
-				if (selectedSquare->x == i.x && selectedSquare->y == i.y)
-					executePlayerMove(i);
-				else
-					isPieceSelected = false;
-			}
-		}
-	}
-}
-
-void Game::executePlayerMove(Square& sq)
-{
-	// loop players pieces to find the correct one
-	for (int i = 0; i < 32; i++)
-	{
-		// filter moves
-		if ((Global::playerTurn && Pieces::get(i).user == PLAYER && Pieces::get(i).type != NONE)
-			|| (!Global::playerTurn && Pieces::get(i).user == ENGINE && Pieces::get(i).type != NONE))
-		{
-			if (originalSquare == &Sqr::getSquare(Pieces::get(i).x, Pieces::get(i).y))
-			{
-				// pawn promotion
-				if ((Pieces::get(i).type == PAWN && Pieces::get(i).user == PLAYER && (sq.y == 0 || sq.y == 7) && Global::playerTurn)
-				|| (Pieces::get(i).type == PAWN && Pieces::get(i).user == ENGINE && (sq.y == 0 || sq.y == 7) && !Global::playerTurn))
-					Global::inPromotion = true;
-
-				// make the move
-				Move::execute(&Pieces::get(i), sq);
-				legalMoves.clear();
-                updateConsole();
-
-                if(!Global::inPromotion)
-                {
-                    isPieceSelected = false;
-
-                    if (Global::playerTurn)
-                        Global::playerTurn = false;
-                    else
-                        Global::playerTurn = true;
-                }
-			}
-		}
+		isPieceSelected = false;
+		Global.playerTurn = !Global.playerTurn;
 	}
 }
 
 // update console output
 void Game::updateConsole()
 {
-	switch (Global::state)
+	switch (Global.state)
 	{
-		case GAME_ON:
-			updateConsoleText(Move::getName());
+		case GameState::On:
+			updateConsoleText(lastMove);
 			break;
-		case VICTORY:
+		case GameState::Victory:
 			updateConsoleText("Checkmate! You won!");
-			Global::state = END;
+			Global.state = GameState::End;
 			break;
-		case DEFEAT:
+		case GameState::Defeat:
 			updateConsoleText("Checkmate! You lost.");
-			Global::state = END;
+			Global.state = GameState::End;
 			break;
-		case DRAW:
+		case GameState::Draw:
 			updateConsoleText("Draw!");
-			Global::state = END;
+			Global.state = GameState::End;
 			break;
-		default:
+		case GameState::End:
 			break;
 	}
 
-	if (Global::state == END)
+	if (Global.state == GameState::End)
 		updateConsoleText("Hit 'R' to play again.");
 }
 
-void Game::updateConsoleText(const std::string& text)
+void Game::updateConsoleText(const std::string &text)
 {
-	console.push_back(new Text(text, Global::playerTurn));
-	consoleIndex++;
+	constexpr SDL_Color playerColor{255, 255, 0, SDL_ALPHA_OPAQUE};
+	constexpr SDL_Color engineColor{0, 255, 255, SDL_ALPHA_OPAQUE};
+	constexpr int lineHeight = 18;
 
-	for (auto &i: console)
-		i->position.y -= 18;
+	console.emplace_back(consoleFont.get(), text, Global.playerTurn ? playerColor : engineColor,
+						 SDL_Point{Screen::getWidth() - 150, Screen::getHeight() - 25});
+
+	// scroll older lines up
+	for (Text &line : console)
+		line.position.y -= lineHeight;
 }
 
 // reset game variables
@@ -358,31 +290,16 @@ void Game::resetGame()
 	// pieces to their correct places
 	Pieces::init();
 
-	// gameplay settings to normal
-	Global::playerKingMoved = false;
-	Global::engineKingMoved = false;
-	Global::playerQsideRookMoved = false;
-	Global::playerKsideRookMoved = false;
-	Global::engineQsideRookMoved = false;
-	Global::engineKsideRookMoved = false;
-	Global::playerCanCastleK = true;
-	Global::playerCanCastleQ = true;
-	Global::engineCanCastleK = true;
-	Global::engineCanCastleQ = true;
-	Global::playerInCheck = false;
-	Global::engineInCheck = false;
-
-	// set game to ON
-	Global::state = GAME_ON;
-
-	// white starts game
-	Settings::PlayerColor == WHITE ? Global::playerTurn = true : Global::playerTurn = false;
+	// gameplay settings to normal; white starts the game
+	Global = GlobalState{};
+	Global.playerTurn = Settings::playerColor == Color::White;
 
 	// unselect square
 	originalSquare = nullptr;
 	selectedSquare = nullptr;
+	isPieceSelected = false;
+	legalMoves.clear();
 
 	// clear console
 	console.clear();
 }
-

@@ -1,52 +1,26 @@
-#ifndef UKKOSHAKKI_GUI_HH
-#define UKKOSHAKKI_GUI_HH
+#pragma once
 
-#include <SDL2/SDL.h>
+#include <SDL.h>
+#include "Sdl.hh"
 #include "Square.hh"
-#include "SquareManager.hh"
-#include "ScreenSize.hh"
-#include "Text.hh"
-#include "Texture.hh"
-#include "Global.hh"
-#include <vector>
 
-class GUI
+namespace GUI
+{
+	[[nodiscard]] bool isMouseOver(const SDL_Point &mousePos, const SDL_Rect &rect) noexcept;
+
+	// the board square under the mouse; clicks right of the board select the last file
+	[[nodiscard]] Square &squareAt(const SDL_Point &mousePos);
+}
+
+// displays during pawn promotion
+class PromotionTable
 {
 public:
-	static bool onMouseRollOver(SDL_Point &mousePos, SDL_Rect &square);
-	static Square *onSelect(SDL_Point &mousePos);
+	// throws std::runtime_error if the texture can't be loaded
+	PromotionTable();
+	void render() const;
+
+private:
+	sdl::Texture tooltips;
+	// TODO: Promotion GUI buttons (Assets/Buttons)
 };
-
-struct PromotionTable : public GUI {
-    PromotionTable()
-    {
-        // displays during pawn promotion
-		canvas = {Screen::getWidth() / 8, Screen::getHeight() / 5, (Screen::getWidth() / 4 * 3), Screen::getHeight() / 2};
-		promotionTableTooltips = Texture::load("../Assets/Other/tooltips.png");
-    }
-
-    ~PromotionTable()
-    {
-		Global::inPromotion = false;
-		SDL_DestroyTexture(promotionTableTooltips);
-    }
-
-    SDL_Rect canvas{};
-    SDL_Texture* promotionTableTooltips;
-    /*
-     * TODO: Promotion GUI buttons
-     SDL_Texture* promotionButtons[4] = {
-
-     };
-    */
-    Text tooltips[4] = {
-			Text("NUM1: QUEEN", 0.4f, 0.4f),
-			Text("NUM2: ROOK", 0.4f, 0.5f),
-			Text("NUM3: KNIGHT", 0.4f, 0.6f),
-			Text("NUM4: BISHOP", 0.4f, 0.7f),
-    };
-};
-
-
-
-#endif //UKKOSHAKKI_GUI_HH

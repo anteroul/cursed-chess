@@ -1,0 +1,4 @@
+# project-local Helix settings; clangd picks up .clang-format and build/compile_commands.json
+[[language]]
+name = "cpp"
+auto-format = true

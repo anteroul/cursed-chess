@@ -1,0 +1,65 @@
+---
+Language: Cpp
+Standard: c++20
+BasedOnStyle: LLVM
+
+# indentation: tabs, shown 4 wide
+UseTab: ForContinuationAndIndentation
+TabWidth: 4
+IndentWidth: 4
+ContinuationIndentWidth: 4
+ColumnLimit: 120
+AccessModifierOffset: -4
+IndentCaseLabels: true
+NamespaceIndentation: All
+
+# braces on their own line, except "} else"
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: true
+  AfterClass: true
+  AfterControlStatement: Always
+  AfterEnum: false
+  AfterFunction: true
+  AfterNamespace: true
+  AfterStruct: true
+  AfterUnion: true
+  BeforeCatch: true
+  BeforeElse: false
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: false
+  SplitEmptyRecord: false
+  SplitEmptyNamespace: false
+
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+AllowShortEnumsOnASingleLine: true
+AllowShortLambdasOnASingleLine: All
+
+# Type *ptr, Type &ref
+PointerAlignment: Right
+ReferenceAlignment: Pointer
+
+BreakBeforeBinaryOperators: NonAssignment
+BreakConstructorInitializers: BeforeColon
+PackConstructorInitializers: NextLine
+AlwaysBreakTemplateDeclarations: Yes
+Cpp11BracedListStyle: true
+FixNamespaceComments: false
+SpaceAfterTemplateKeyword: true
+SpaceBeforeParens: ControlStatements
+
+# keep include blocks as written, just sort within each block
+SortIncludes: CaseSensitive
+IncludeBlocks: Preserve
+IncludeCategories:
+  - Regex: '^<'
+    Priority: 1
+  - Regex: '^"'
+    Priority: 2
+...

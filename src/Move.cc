@@ -1,20 +1,18 @@
 #include "Move.hh"
 
-namespace Move
+#include <cstdlib>
+#include <iostream>
+#include <string_view>
+#include "Global.hh"
+#include "Pieces.hh"
+#include "SquareManager.hh"
+
+namespace
 {
-	// algebraic notation of the move
-	std::string name;
-
-	// parts of the notation
-	std::string nameSource;
-	char nameX;
-	char nameY;
-	std::string promotion;
-
 	// make the square empty
 	void emptySquare(int x, int y)
 	{
-		Sqr::squareHelper(x, y)->piece = ghost(x, y);
+		Sqr::at(x, y).piece = ghost(x, y);
 	}
 
 	// make the piece empty
@@ -23,256 +21,111 @@ namespace Move
 		Pieces::set(ghost(x, y), x, y);
 	}
 
-	void castlingFunc(Piece *source, Piece &rook, bool player, bool queenSide)
+	constexpr std::string_view pieceName(PieceType type) noexcept
 	{
-		int y;
-		nameSource = "";
-
-		// make king's square empty
-		if (player)
+		switch (type)
 		{
-			emptySquare(4, 7);
-			y = 7;
-		} else
-		{
-			emptySquare(4, 0);
-			y = 0;
+			case PieceType::Pawn:
+				return "Pawn";
+			case PieceType::Rook:
+				return "Rook";
+			case PieceType::Knight:
+				return "Knight";
+			case PieceType::Bishop:
+				return "Bishop";
+			case PieceType::Queen:
+				return "Queen";
+			case PieceType::King:
+				return "King";
+			case PieceType::None:
+				break;
 		}
-
-		// make rook's square empty and move pieces
-		if (queenSide)
-		{
-			emptySquare(0, y);
-			source->x -= 2;
-			rook.x += 3;
-			name = "0-0-0";
-		} else
-		{
-			emptySquare(7, y);
-			source->x += 2;
-			rook.x -= 2;
-			name = "0-0";
-		}
-
-		// update board
-		Sqr::squareHelper(rook.x, rook.y)->piece = rook;
-		Sqr::squareHelper(source->x, source->y)->piece = *source;
+		return "";
 	}
 
-	void readName()
-	{ std::cout << name << "\n"; }
-
-	std::string getName()
-	{ return name; }
-
-	void execute(Piece *source, Square target)
+	// e.g. (4, 6) -> "E2"
+	std::string squareName(int x, int y)
 	{
-		name = "";
-		nameSource = "";
+		return {static_cast<char>('A' + x), static_cast<char>('8' - y)};
+	}
 
-		switch (source->type)
+	// move king and rook to their castled squares; returns the castling notation
+	std::string_view castle(Piece &king, Piece &rook, bool queenSide)
+	{
+		emptySquare(king.x, king.y);
+		emptySquare(rook.x, rook.y);
+
+		if (queenSide)
 		{
-			case NONE:
-				break;
-			case PAWN:
-				nameSource = "Pawn";
-				break;
-			case ROOK:
-				nameSource = "Rook";
-				break;
-			case KING:
-				nameSource = "King";
-				break;
-			case QUEEN:
-				nameSource = "Queen";
-				break;
-			case KNIGHT:
-				nameSource = "Knight";
-				break;
-			case BISHOP:
-				nameSource = "Bishop";
-				break;
-		}
-
-		switch (target.x)
-		{
-			case 0:
-				nameX = 'A';
-				break;
-			case 1:
-				nameX = 'B';
-				break;
-			case 2:
-				nameX = 'C';
-				break;
-			case 3:
-				nameX = 'D';
-				break;
-			case 4:
-				nameX = 'E';
-				break;
-			case 5:
-				nameX = 'F';
-				break;
-			case 6:
-				nameX = 'G';
-				break;
-			case 7:
-				nameX = 'H';
-				break;
-		}
-
-		switch (target.y)
-		{
-			case 0:
-				nameY = '8';
-				break;
-			case 1:
-				nameY = '7';
-				break;
-			case 2:
-				nameY = '6';
-				break;
-			case 3:
-				nameY = '5';
-				break;
-			case 4:
-				nameY = '4';
-				break;
-			case 5:
-				nameY = '3';
-				break;
-			case 6:
-				nameY = '2';
-				break;
-			case 7:
-				nameY = '1';
-				break;
-		}
-
-		// castling
-		if (source->type == KING)
-		{
-			if (source->user == PLAYER)
-			{
-				Global::playerKingMoved = true;
-
-				// queen side castle
-				if (source->x - 2 == target.x)
-					castlingFunc(source, Pieces::get(24), true, true);
-
-				// king side castle
-				if (source->x + 2 == target.x)
-					castlingFunc(source, Pieces::get(25), true, false);
-
-			}
-
-				// (if source.user == ENGINE)
-			else
-			{
-				Global::engineKingMoved = true;
-
-				if (source->x - 2 == target.x)
-					castlingFunc(source, Pieces::get(8), false, true);
-
-				if (source->x + 2 == target.x)
-					castlingFunc(source, Pieces::get(9), false, false);
-
-			}
-
-		}
-
-		// if rook is moved, has to do with castling
-		if (source->type == ROOK)
-		{
-			if (source->user == PLAYER)
-			{
-				if (source->x == 0)
-					Global::playerQsideRookMoved = true;
-				if (source->x == 7)
-					Global::playerKsideRookMoved = true;
-			} else
-			{
-				if (source->x == 0)
-					Global::engineQsideRookMoved = true;
-				if (source->x == 7)
-					Global::engineKsideRookMoved = true;
-
-			}
-		}
-
-		// en passant move
-		if (source->type == PAWN)
-		{
-			if (Global::en_passant)
-			{
-				if (target.x == Global::en_passant->x && target.y == Global::en_passant->y)
-				{
-					if (source->user == PLAYER)
-					{
-						emptyPiece(target.x, (target.y + 1));
-						emptySquare(target.x, (target.y + 1));
-					} else
-					{
-						emptyPiece(target.x, (target.y - 1));
-						emptySquare(target.x, (target.y - 1));
-					}
-				}
-			}
-		}
-
-		// make en passant squares
-		if (source->type == PAWN)
-		{
-			if (source->user == PLAYER)
-			{
-				if (source->y == 6 && target.y == 4)
-					Global::en_passant = Sqr::squareHelper(source->x, 5);
-				else
-					Global::en_passant = nullptr;
-			} else
-			{
-				if (source->y == 1 && target.y == 3)
-					Global::en_passant = Sqr::squareHelper(source->x, 2);
-				else
-					Global::en_passant = nullptr;
-			}
+			king.x -= 2;
+			rook.x += 3;
 		} else
-			Global::en_passant = nullptr;
-
-
-		// REGULAR MOVE
-
-		// capturing piece
-		if (target.piece.type != NONE)
 		{
-			for (int i = 0; i < 32; i++)
-			{
-				if (Pieces::get(i).x == target.x && Pieces::get(i).y == target.y)
-				{
-					Piece *x = Pieces::getModify(i);
-					x->type = NONE;
-					x->color = UNDEFINED;
-					x->user = GHOST;
-				}
-			}
+			king.x += 2;
+			rook.x -= 2;
 		}
 
+		Sqr::at(rook.x, rook.y).piece = rook;
+		Sqr::at(king.x, king.y).piece = king;
 
-		emptySquare(source->x, source->y);
-
-		source->x = target.x;
-		source->y = target.y;
-
-		// update square
-		Sqr::squareHelper(source->x, source->y)->piece = *source;
-
-		// make the notation
-		name = name + nameSource + " to " + nameX + nameY + promotion;
-
-		// read info of the move in console
-		readName();
+		return queenSide ? "0-0-0" : "0-0";
 	}
 }
 
+std::string Move::execute(Piece &source, Square target)
+{
+	std::string prefix{pieceName(source.type)};
+	const bool player = source.user == User::Player;
+	SideState &side = Global.side(source.user);
 
+	// castling
+	if (source.type == PieceType::King)
+	{
+		side.kingMoved = true;
+
+		if (target.x == source.x - 2)
+			prefix =
+				castle(source, Pieces::get(player ? Pieces::PlayerQueenSideRook : Pieces::EngineQueenSideRook), true);
+		else if (target.x == source.x + 2)
+			prefix =
+				castle(source, Pieces::get(player ? Pieces::PlayerKingSideRook : Pieces::EngineKingSideRook), false);
+	}
+
+	// if rook is moved, has to do with castling
+	if (source.type == PieceType::Rook)
+	{
+		if (source.x == 0)
+			side.queenSideRookMoved = true;
+		if (source.x == 7)
+			side.kingSideRookMoved = true;
+	}
+
+	if (source.type == PieceType::Pawn)
+	{
+		// en passant capture: the captured pawn is behind the target square
+		if (const Square *ep = Global.enPassant; ep && target.x == ep->x && target.y == ep->y)
+		{
+			const int capturedY = target.y + (player ? 1 : -1);
+			emptyPiece(target.x, capturedY);
+			emptySquare(target.x, capturedY);
+		}
+
+		// a double step makes the skipped square available for en passant
+		Global.enPassant =
+			std::abs(target.y - source.y) == 2 ? Sqr::find(source.x, (source.y + target.y) / 2) : nullptr;
+	} else
+		Global.enPassant = nullptr;
+
+	// regular move, capturing whatever is on the target square
+	if (!target.piece.isEmpty())
+		emptyPiece(target.x, target.y);
+
+	emptySquare(source.x, source.y);
+	source.x = target.x;
+	source.y = target.y;
+	Sqr::at(source.x, source.y).piece = source;
+
+	std::string name = prefix + " to " + squareName(target.x, target.y);
+	std::cout << name << '\n';
+	return name;
+}

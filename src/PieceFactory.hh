@@ -1,45 +1,31 @@
-#ifndef PIECEFACTORY_HH
-#define PIECEFACTORY_HH
+#pragma once
 
-#include <SDL2/SDL.h>
-#include <string>
-#include "Texture.hh"
-#include "Board.hh"
-#include "Global.hh"
+#include <array>
+#include <cstddef>
+#include "Piece.hh"
+#include "Sdl.hh"
 
-class PieceFactory {
+// loads and owns the piece textures
+class PieceFactory
+{
 public:
-    PieceFactory();
+	// throws std::runtime_error if a texture can't be loaded
+	PieceFactory();
 
-    ~PieceFactory();
+	// texture for the piece, or nullptr for an empty square
+	[[nodiscard]] SDL_Texture *texture(PieceType type, Color color) const noexcept;
 
-    // get texture
-    SDL_Texture *getPiece(int n);
+	// draw the piece on its square
+	void render(const Piece &piece) const;
 
 private:
+	static constexpr std::size_t TypeCount = 6;
+	static constexpr std::size_t ColorCount = 2;
 
-    // the textures
-    SDL_Texture *p[16]{};
+	[[nodiscard]] static constexpr std::size_t index(PieceType type, Color color) noexcept
+	{
+		return static_cast<std::size_t>(color) * TypeCount + static_cast<std::size_t>(type);
+	}
 
-    std::string c[16] = {
-            "Assets/bb.png",
-            "Assets/bh.png",
-            "Assets/bk.png",
-            "Assets/bp.png",
-            "Assets/bq.png",
-            "Assets/br.png",
-            "Assets/wb.png",
-            "Assets/wh.png",
-            "Assets/wk.png",
-            "Assets/wp.png",
-            "Assets/wq.png",
-            "Assets/wr.png",
-            "Assets/bishop_btn.png",
-            "Assets/knight_btn.png",
-            "Assets/queen_btn.png",
-            "Assets/rook_btn.png"
-    };
+	std::array<sdl::Texture, TypeCount * ColorCount> textures;
 };
-
-#endif
-

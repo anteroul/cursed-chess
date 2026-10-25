@@ -1,16 +1,14 @@
-#ifndef SQUARE_HH
-#define SQUARE_HH
+#pragma once
 
+#include <SDL_rect.h>
 #include "Piece.hh"
-#include <SDL2/SDL.h>
+
+inline constexpr int BoardSize = 8;
 
 struct Square
 {
-	SDL_Rect rect;
-	Piece piece;
-	int x, y;
+	SDL_Rect rect{};
+	Piece piece{};
+	int x = 0;
+	int y = 0;
 };
-
-
-#endif
-

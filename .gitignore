@@ -14,9 +14,14 @@ vgcore.*
 callgrind.*
 
 # ignore IDE generated files
+/.idea/
 **.vscode/
 **.idea/
 **cmake-build-debug/
 
 # ignore shell.nix
 shell.nix
+
+# ignore build directory and clangd index
+build/
+.cache/

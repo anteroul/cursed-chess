@@ -1,16 +1,10 @@
-#ifndef TEXTURE_HH
-#define TEXTURE_HH
+#pragma once
 
-#include <SDL2/SDL.h>
-#include <SDL2/SDL_image.h>
-#include <iostream>
 #include <string>
-#include "Renderer.hh"
-#include "ScreenSize.hh"
+#include "Sdl.hh"
 
 namespace Texture
 {
-	SDL_Texture* load(std::string path);
+	// load an image with the current renderer; throws std::runtime_error on failure
+	[[nodiscard]] sdl::Texture load(const std::string &path);
 }
-
-#endif
