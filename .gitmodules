@@ -1,0 +1,3 @@
+[submodule "external/nexilis"]
+	path = external/nexilis
+	url = https://github.com/nexilistudios/nexilis

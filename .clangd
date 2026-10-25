@@ -1,0 +1,4 @@
+# always use the CMake build's compile database (cmake -S . -B build), even if a stray
+# compile_commands.json from an in-source build sits in the repository root
+CompileFlags:
+  CompilationDatabase: build

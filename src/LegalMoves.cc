@@ -126,7 +126,7 @@ namespace
 	}
 }
 
-std::vector<Square> LegalMove::pseudoLegal(const Piece &piece)
+std::vector<Square> LegalMove::pseudoLegal(Piece piece)
 {
 	Moves moves;
 
@@ -176,7 +176,7 @@ std::vector<Square> LegalMove::pseudoLegal(const Piece &piece)
 	return moves;
 }
 
-std::vector<Square> LegalMove::legal(const Piece &piece)
+std::vector<Square> LegalMove::legal(Piece piece)
 {
 	Moves moves = pseudoLegal(piece);
 	std::erase_if(moves, [&](const Square &target) { return leavesKingInCheck(piece, target); });

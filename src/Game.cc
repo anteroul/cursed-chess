@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cassert>
+#include <iostream>
+#include <utility>
 #include "Assets.hh"
 #include "Board.hh"
 #include "FontLoader.hh"
@@ -22,6 +24,8 @@ namespace
 		return Global.playerTurn ? User::Player : User::Engine;
 	}
 
+	constexpr SDL_Color StatusColor{200, 200, 200, SDL_ALPHA_OPAQUE};
+
 	[[nodiscard]] bool hasLegalMove(User side)
 	{
 		return std::ranges::any_of(Pieces::all(), [side](const Piece &p) {
@@ -30,9 +34,18 @@ namespace
 	}
 }
 
-Game::Game() : consoleFont{FontLoader::load(Assets::path("Fonts/mytype.ttf"), 14)}
+Game::Game(const std::optional<NetworkOptions> &networkOptions)
+	: network{networkOptions ? std::make_unique<NetworkSession>(*networkOptions) : nullptr},
+	  consoleFont{FontLoader::load(Assets::path("Fonts/mytype.ttf"), 14)}
 {
 	resetGame();
+
+	if (network)
+	{
+		for (const std::string &address : network->localAddresses())
+			std::cout << "The opponent can join with: nx-chess --join " << address
+					  << (networkOptions->password.empty() ? "" : " --password <password>") << '\n';
+	}
 }
 
 void Game::updateGame()
@@ -62,7 +75,7 @@ void Game::eventHandler()
 
 			case SDL_MOUSEBUTTONDOWN:
 				mousePos = {e.button.x, e.button.y};
-				if (!Global.inPromotion)
+				if (!Global.inPromotion && canMoveLocally())
 					onMouseClick();
 				break;
 
@@ -71,8 +84,8 @@ void Game::eventHandler()
 					applicationShouldClose = true;
 				// if game is over press 'R' to reset and play again :)
 				else if (e.key.keysym.sym == SDLK_r)
-					resetGame();
-				else if (Global.inPromotion)
+					requestReset();
+				else if (Global.inPromotion && canMoveLocally())
 					onPromotionKey(e.key.keysym.sym);
 				break;
 
@@ -119,19 +132,115 @@ void Game::onPromotionKey(SDL_Keycode key)
 
 	// the promoting pawn stands on the selected (target) square
 	assert(selectedSquare);
-	if (Piece *pawn = Pieces::getReal(selectedSquare->piece))
-		pawn->type = promoted;
-	selectedSquare->piece.type = promoted;
+	promote(*selectedSquare, promoted);
+
+	if (network && pendingPromotion)
+	{
+		pendingPromotion->promotion = promoted;
+		network->sendMove(*pendingPromotion);
+		pendingPromotion.reset();
+	}
+}
+
+void Game::promote(Square &square, PieceType type)
+{
+	if (Piece *pawn = Pieces::getReal(square.piece))
+		pawn->type = type;
+	square.piece.type = type;
 
 	Global.inPromotion = false;
 	Global.playerTurn = !Global.playerTurn;
 }
 
+void Game::requestReset()
+{
+	if (network)
+	{
+		if (!network->ready())
+			return;
+		network->sendReset();
+	}
+	resetGame();
+}
+
 // update turns
 void Game::update()
 {
+	if (network)
+		handleNetwork();
+
 	if (Global.state == GameState::On)
 		playTurn();
+}
+
+void Game::handleNetwork()
+{
+	network->update();
+
+	// show connection status both in the terminal and in the game console
+	for (const std::string &line : network->takeStatus())
+	{
+		std::cout << line << '\n';
+		updateConsoleText(line, StatusColor);
+	}
+
+	for (const NetworkEvent &event : network->receive())
+	{
+		if (event.type == NetworkEvent::Type::Reset)
+		{
+			resetGame();
+			updateConsoleText("Opponent restarted the game.", StatusColor);
+		} else
+			applyRemoteMove(event.move);
+	}
+}
+
+void Game::applyRemoteMove(const NetworkMove &move)
+{
+	// never trust the peer: only accept a legal move of one of its pieces on its turn
+	const User opponent = opponentOf(network->localSide());
+	Square &from = Sqr::at(move.fromX, move.fromY);
+
+	const bool opponentsTurn = Global.state == GameState::On && !Global.inPromotion && currentSide() == opponent;
+	if (!opponentsTurn || from.piece.isEmpty() || from.piece.user != opponent)
+	{
+		std::cerr << "Ignoring an out-of-turn move from the opponent\n";
+		return;
+	}
+
+	GameManager::update();
+	const auto moves = LegalMove::legal(from.piece);
+	const auto target =
+		std::ranges::find_if(moves, [&](const Square &s) { return s.x == move.toX && s.y == move.toY; });
+	if (target == moves.end())
+	{
+		std::cerr << "Ignoring an illegal move from the opponent\n";
+		return;
+	}
+
+	// the board is about to change, so drop the local selection
+	selectedSquare = nullptr;
+	originalSquare = nullptr;
+	isPieceSelected = false;
+
+	executeMove(from, *target);
+
+	if (Global.inPromotion)
+	{
+		const bool validPromotion =
+			move.promotion != PieceType::None && move.promotion != PieceType::Pawn && move.promotion != PieceType::King;
+		promote(Sqr::at(move.toX, move.toY), validPromotion ? move.promotion : PieceType::Queen);
+	}
+}
+
+bool Game::canMoveLocally() const noexcept
+{
+	return !network || (network->ready() && currentSide() == network->localSide());
+}
+
+User Game::viewer() const noexcept
+{
+	return network ? network->localSide() : User::Player;
 }
 
 void Game::render()
@@ -200,7 +309,7 @@ void Game::playTurn()
 	}
 
 	// wait until a new square is selected
-	if (!isPieceSelected || selectedSquare == originalSquare)
+	if (!canMoveLocally() || !isPieceSelected || selectedSquare == originalSquare)
 		return;
 
 	const auto move = std::ranges::find_if(
@@ -214,18 +323,20 @@ void Game::playTurn()
 
 	// copy: executeMove clears legalMoves
 	const Square target = *move;
-	executeMove(target);
+	executeMove(*originalSquare, target);
 }
 
-void Game::executeMove(const Square &target)
+void Game::executeMove(Square &from, const Square &target)
 {
 	const User side = currentSide();
 	const auto all = Pieces::all();
 	const auto piece = std::ranges::find_if(
-		all, [&](const Piece &p) { return p.user == side && !p.isEmpty() && &Sqr::at(p.x, p.y) == originalSquare; });
+		all, [&](const Piece &p) { return p.user == side && !p.isEmpty() && &Sqr::at(p.x, p.y) == &from; });
 
 	if (piece == all.end())
 		return;
+
+	const NetworkMove networkMove{from.x, from.y, target.x, target.y};
 
 	// pawn promotion
 	if (piece->type == PieceType::Pawn && (target.y == 0 || target.y == BoardSize - 1))
@@ -234,6 +345,15 @@ void Game::executeMove(const Square &target)
 	lastMove = Move::execute(*piece, target);
 	legalMoves.clear();
 	updateConsole();
+
+	// tell the opponent about our own moves; a promotion is sent once the new piece is chosen
+	if (network && side == network->localSide())
+	{
+		if (Global.inPromotion)
+			pendingPromotion = networkMove;
+		else
+			network->sendMove(networkMove);
+	}
 
 	if (!Global.inPromotion)
 	{
@@ -251,13 +371,13 @@ void Game::updateConsole()
 			updateConsoleText(lastMove);
 			break;
 		case GameState::Victory:
-			updateConsoleText("Checkmate! You won!");
-			Global.state = GameState::End;
-			break;
 		case GameState::Defeat:
-			updateConsoleText("Checkmate! You lost.");
+		{
+			const User mated = Global.state == GameState::Defeat ? User::Player : User::Engine;
+			updateConsoleText(mated == viewer() ? "Checkmate! You lost." : "Checkmate! You won!");
 			Global.state = GameState::End;
 			break;
+		}
 		case GameState::Draw:
 			updateConsoleText("Draw!");
 			Global.state = GameState::End;
@@ -274,14 +394,26 @@ void Game::updateConsoleText(const std::string &text)
 {
 	constexpr SDL_Color playerColor{255, 255, 0, SDL_ALPHA_OPAQUE};
 	constexpr SDL_Color engineColor{0, 255, 255, SDL_ALPHA_OPAQUE};
-	constexpr int lineHeight = 18;
 
-	console.emplace_back(consoleFont.get(), text, Global.playerTurn ? playerColor : engineColor,
-						 SDL_Point{Screen::getWidth() - 150, Screen::getHeight() - 25});
+	updateConsoleText(text, Global.playerTurn ? playerColor : engineColor);
+}
 
-	// scroll older lines up
-	for (Text &line : console)
-		line.position.y -= lineHeight;
+void Game::updateConsoleText(const std::string &text, SDL_Color color)
+{
+	// the console is the right fifth of the window, see Text::render
+	constexpr int margin = 4;
+	constexpr int bottom = 25;
+	const int wrapWidth = Screen::getWidth() / 5 - margin;
+
+	Text line(consoleFont.get(), text, color, SDL_Point{Screen::getWidth() - 150, 0}, wrapWidth);
+	const int height = line.position.h;
+	line.position.y = Screen::getHeight() - bottom - height;
+
+	// scroll older lines up to make room
+	for (Text &older : console)
+		older.position.y -= height;
+
+	console.push_back(std::move(line));
 }
 
 // reset game variables
@@ -299,6 +431,7 @@ void Game::resetGame()
 	selectedSquare = nullptr;
 	isPieceSelected = false;
 	legalMoves.clear();
+	pendingPromotion.reset();
 
 	// clear console
 	console.clear();
